@@ -1,0 +1,34 @@
+{
+    "transactions": [
+        {
+            "date": "2025-11-01",
+            "description": "Tesco Groceries",
+            "amount": -32.50,
+            "category": "Food"
+        },
+        {
+            "date": "2025-11-02",
+            "description": "Uber Ride",
+            "amount": -18.00,
+            "category": "Transport"
+        },
+        {
+            "date": "2025-11-03",
+            "description": "Salary Deposit",
+            "amount": 2100.00,
+            "category": "Income"
+        },
+        {
+            "date": "2025-11-04",
+            "description": "Pret Coffee",
+            "amount": -4.20,
+            "category": "Food"
+        },
+        {
+            "date": "2025-11-05",
+            "description": "Netflix Subscription",
+            "amount": -9.99,
+            "category": "Entertainment"
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+[
+    {
+        "id": "minimise_food_delivery_spike",
+        "type": "minimise",
+        "category": "Food",
+        "subtype": "delivery_spike",
+        "text": "Hey {user_name}, I noticed a spike in your food delivery this week.\n\nIt’s so easy to tap a button when you're exhausted. If you'd like, I can suggest a few cheap, quick meals (under 25 minutes) so you still feel cared for — just with less pressure on your budget."
+    },
+    {
+        "id": "pattern_entertainment_burnout",
+        "type": "pattern",
+        "category": "Entertainment",
+        "text": "Hey {user_name}, you’ve been spending more on fun lately — tickets, outings, little escapes.\n\nThat often happens when someone’s been working really hard or feeling burnt out. Want to explore how you’re really feeling and find small ways to refill your energy that don’t always require spending?"
+    },
+    {
+        "id": "multi_food_entertainment_checkin",
+        "type": "multi_category_checkin",
+        "categories": [
+            "Food",
+            "Entertainment"
+        ],
+        "text": "You’ve been spending more than usual on food and entertainment.\n\nThat could mean stress, celebration, or just wanting to feel good after a heavy period.",
+        "question": "Which of these feels closest to what’s been going on for you lately?",
+        "options": [
+            "I’ve been really stressed or burnt out.",
+            "Something exciting or out of the ordinary happened.",
+            "I just wanted to enjoy myself, no deeper reason.",
+            "I’m not sure / it’s a mix of things."
+        ]
+    }
+]

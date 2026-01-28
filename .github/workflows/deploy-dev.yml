@@ -1,0 +1,79 @@
+name: Deploy to Cloud Run (Dev)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Build and Deploy to Dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker europe-west2-docker.pkg.dev
+
+      - name: Build Docker image
+        run: |
+          docker build -t europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ github.sha }} .
+          docker tag europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ github.sha }} europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:latest
+
+      - name: Push Docker image
+        run: |
+          docker push europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ github.sha }}
+          docker push europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy aiva-backend-dev \
+            --image=europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ github.sha }} \
+            --platform=managed \
+            --region=europe-west2 \
+            --allow-unauthenticated \
+            --set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
+            --min-instances=0 \
+            --max-instances=10 \
+            --memory=512Mi \
+            --cpu=1 \
+            --port=8000 \
+            --timeout=60 \
+            --concurrency=5
+
+      - name: Run smoke tests
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 10
+          
+          SERVICE_URL=$(gcloud run services describe aiva-backend-dev --region=europe-west2 --format='value(status.url)')
+          
+          echo "Testing health endpoint..."
+          curl -f "$SERVICE_URL/health" || exit 1
+          
+          echo "Testing root endpoint..."
+          curl -f "$SERVICE_URL/" || exit 1
+          
+          echo "✅ All smoke tests passed!"
+
+      - name: Output deployment info
+        run: |
+          echo "🚀 Deployment successful!"
+          echo "Service URL: $(gcloud run services describe aiva-backend-dev --region=europe-west2 --format='value(status.url)')"
+          echo "Image: europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ github.sha }}"

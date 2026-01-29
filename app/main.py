@@ -25,7 +25,12 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "AIVA is running 🚀"}
+    return {
+        "message": "AIVA is running 🚀",
+        "version": "2.0.0",
+        "ci_cd": "enabled",
+        "deployed_via": "github_actions"
+    }
 
 
 @app.get("/transactions/mock")

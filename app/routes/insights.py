@@ -1,5 +1,5 @@
 import json
-
+import logging
 from fastapi import APIRouter, HTTPException
 
 from app.models.responses import InsightResponse, ErrorResponse
@@ -9,8 +9,8 @@ from app.services.spending_engine import load_mock_transactions, summarize_spend
 from app.services.ai_client import get_gemini_client
 from app.services.knowledge_retriever import build_guidance_text, get_checkin_for_category
 
-
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -134,48 +134,47 @@ def ai_insights() -> InsightResponse:
             )
 
         try:
-            # Define the Gemini API call as a callable function
             def call_gemini_api():
                 return client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=prompt,
                 )
 
-            # Execute through circuit breaker
             response = gemini_circuit_breaker.call(call_gemini_api)
             ai_text = response.text
 
         except Exception as e:
             error_msg = str(e)
 
-            # Circuit breaker is open (service is down)
             if "Circuit breaker is OPEN" in error_msg:
-                print(f"Circuit breaker OPEN: {error_msg}")
+                # ✅ FIXED: Use logging
+                logger.warning(f"Circuit breaker OPEN: {error_msg}")
                 raise HTTPException(
                     status_code=503,
                     detail=error_msg
                 )
 
-            # Rate limit error from Gemini API
             if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                print(f"Gemini API rate limit hit: {repr(e)}")
+                # ✅ FIXED: Use logging
+                logger.warning("Gemini API rate limit hit", exc_info=True)
                 raise HTTPException(
                     status_code=429,
                     detail="AI service rate limit exceeded. Please try again in a moment."
                 )
 
-            # Generic AI service error
-            print(f"Gemini API error: {repr(e)}")
+            # ✅ FIXED: Use logging
+            logger.error("Gemini API error", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="Failed to call AI service. Please try again later."
             )
 
-        # ---- 6. Parse JSON safely (using your helper) ----
+        # ---- 6. Parse JSON safely ----
         try:
             insight_data = parse_ai_json(ai_text)
         except json.JSONDecodeError:
-            print("AI returned non-JSON:", ai_text)
+            # ✅ FIXED: Use logging
+            logger.error("AI returned non-JSON", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="AI returned invalid JSON for insights."
@@ -187,7 +186,6 @@ def ai_insights() -> InsightResponse:
             **insight_data
         }
 
-        # Attach optional check-in data for the frontend / UX layer
         if checkin_question and checkin_options:
             response_body["checkin_question"] = checkin_question
             response_body["checkin_options"] = checkin_options
@@ -195,11 +193,10 @@ def ai_insights() -> InsightResponse:
         return response_body
 
     except HTTPException:
-        # Re-raise HTTP errors (already formatted correctly)
         raise
     except Exception as e:
-        # Catch any unexpected errors
-        print("Unexpected error in insights generation:", repr(e))
+        # ✅ FIXED: Use logging
+        logger.error("Unexpected error in insights generation", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while generating insights."

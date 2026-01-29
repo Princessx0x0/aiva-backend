@@ -1,5 +1,5 @@
 import json
-
+import logging
 from fastapi import APIRouter, HTTPException
 
 from app.models.responses import CheckinResponse, ErrorResponse
@@ -7,14 +7,15 @@ from app.models.requests import CheckinRequest
 from app.services.ai_client import get_gemini_client
 from app.helpers.json_cleaner import parse_ai_json
 
-
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post(
     "/ai/checkin",
     response_model=CheckinResponse,
     responses={
+        400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
         503: {"model": ErrorResponse},
     },
@@ -25,6 +26,7 @@ def ai_checkin(req: CheckinRequest):
     The user has already seen an insight + check-in options
     and has selected one. AIVA responds with a tailored follow-up.
     """
+    # Input is now validated by Pydantic model
     user_name = req.name or "friend"
     category = req.category
     selected = req.selected_option
@@ -49,7 +51,6 @@ def ai_checkin(req: CheckinRequest):
     )
 
     try:
-        # ---- Get AI client safely ----
         client = get_gemini_client()
 
         if not client:
@@ -58,21 +59,20 @@ def ai_checkin(req: CheckinRequest):
                 detail="AI service is temporarily unavailable."
             )
 
-        # ---- Call Gemini ----
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
         )
 
         ai_text = response.text
-
-        # ---- Parse JSON ----
         followup_data = parse_ai_json(ai_text)
 
         return followup_data
 
     except json.JSONDecodeError:
-        print("AI returned non-JSON for check-in followup:", ai_text)
+        # ✅ FIXED: Use logging
+        logger.error(
+            "AI returned non-JSON for check-in followup", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="AI returned invalid JSON for check-in followup."
@@ -82,7 +82,8 @@ def ai_checkin(req: CheckinRequest):
         raise
 
     except Exception as e:
-        print("Check-in followup error:", repr(e))
+        # ✅ FIXED: Use logging
+        logger.error("Check-in followup error", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Failed to generate AIVA's follow-up message."

@@ -1,10 +1,11 @@
+import logging
 from fastapi import APIRouter, HTTPException
 
 from app.services.ai_client import get_gemini_client
 from app.models.requests import InsightRequest
 
-
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/ai/hello")
@@ -21,6 +22,7 @@ def ai_hello(req: InsightRequest):
             detail="AI service is temporarily unavailable."
         )
 
+    # Input is now validated by Pydantic model
     user_name = req.name or "friend"
 
     prompt = (
@@ -39,7 +41,8 @@ def ai_hello(req: InsightRequest):
         return {"aiva_message": ai_text}
 
     except Exception as e:
-        print("Error while calling Gemini (hello):", repr(e))
+        # ✅ FIXED: Use logging instead of print
+        logger.error("Error while calling Gemini (hello)", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Something went wrong while generating AIVA's greeting.",

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.services.ai_client import get_gemini_client
+from app.helpers.circuit_breaker import gemini_circuit_breaker
 
 router = APIRouter()
 
@@ -17,3 +18,12 @@ def ai_health():
         return {"ai": "unavailable"}
 
     return {"ai": "available"}
+
+
+@router.get("/health/circuit-breaker")
+def circuit_breaker_status():
+    """
+    Check circuit breaker status for monitoring.
+    Returns current state, failure count, and last failure time.
+    """
+    return gemini_circuit_breaker.get_state()

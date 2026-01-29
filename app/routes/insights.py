@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.models.responses import InsightResponse, ErrorResponse
 from app.helpers.json_cleaner import parse_ai_json
+from app.helpers.circuit_breaker import gemini_circuit_breaker
 from app.services.spending_engine import load_mock_transactions, summarize_spending
 from app.services.ai_client import get_gemini_client
 from app.services.knowledge_retriever import build_guidance_text, get_checkin_for_category
@@ -17,12 +18,17 @@ router = APIRouter()
     response_model=InsightResponse,
     responses={
         400: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
     },
 )
 def ai_insights() -> InsightResponse:
     """
     Generate an AI-driven financial insight based on mock transaction data.
+
+    Protected by circuit breaker to prevent cascading failures when
+    external AI service experiences issues.
     """
     try:
         # ---- 1. Load + summarize spending ----
@@ -118,7 +124,7 @@ def ai_insights() -> InsightResponse:
             "Return only JSON. No commentary."
         )
 
-        # ---- 5. Call Gemini ----
+        # ---- 5. Call Gemini with Circuit Breaker Protection ----
         client = get_gemini_client()
 
         if not client:
@@ -127,12 +133,43 @@ def ai_insights() -> InsightResponse:
                 detail="AI service is temporarily unavailable."
             )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        try:
+            # Define the Gemini API call as a callable function
+            def call_gemini_api():
+                return client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                )
 
-        ai_text = response.text  # JSON-looking string, sometimes wrapped in ```json
+            # Execute through circuit breaker
+            response = gemini_circuit_breaker.call(call_gemini_api)
+            ai_text = response.text
+
+        except Exception as e:
+            error_msg = str(e)
+
+            # Circuit breaker is open (service is down)
+            if "Circuit breaker is OPEN" in error_msg:
+                print(f"Circuit breaker OPEN: {error_msg}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=error_msg
+                )
+
+            # Rate limit error from Gemini API
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                print(f"Gemini API rate limit hit: {repr(e)}")
+                raise HTTPException(
+                    status_code=429,
+                    detail="AI service rate limit exceeded. Please try again in a moment."
+                )
+
+            # Generic AI service error
+            print(f"Gemini API error: {repr(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to call AI service. Please try again later."
+            )
 
         # ---- 6. Parse JSON safely (using your helper) ----
         try:
@@ -158,11 +195,12 @@ def ai_insights() -> InsightResponse:
         return response_body
 
     except HTTPException:
-        # re-raise clean HTTP errors
+        # Re-raise HTTP errors (already formatted correctly)
         raise
     except Exception as e:
-        print("Insight generation error:", repr(e))
+        # Catch any unexpected errors
+        print("Unexpected error in insights generation:", repr(e))
         raise HTTPException(
             status_code=500,
-            detail="Failed to generate insights."
+            detail="An unexpected error occurred while generating insights."
         )

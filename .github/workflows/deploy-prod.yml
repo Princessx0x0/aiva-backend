@@ -1,0 +1,71 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (e.g., latest or commit SHA)'
+        required: true
+        default: 'latest'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://aiva-backend-prod-803184004123.europe-west2.run.app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run (Production)
+        run: |
+          gcloud run deploy aiva-backend-prod \
+            --image=europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ inputs.image_tag }} \
+            --platform=managed \
+            --region=europe-west2 \
+            --allow-unauthenticated \
+            --set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
+            --min-instances=1 \
+            --max-instances=20 \
+            --memory=512Mi \
+            --cpu=1 \
+            --port=8000 \
+            --timeout=60 \
+            --concurrency=5
+
+      - name: Run production smoke tests
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 15
+          
+          SERVICE_URL=$(gcloud run services describe aiva-backend-prod --region=europe-west2 --format='value(status.url)')
+          
+          echo "Testing production health endpoint..."
+          curl -f "$SERVICE_URL/health" || exit 1
+          
+          echo "Testing production root endpoint..."
+          curl -f "$SERVICE_URL/" || exit 1
+          
+          echo "✅ Production smoke tests passed!"
+
+      - name: Output deployment info
+        run: |
+          echo "🚀 Production deployment successful!"
+          echo "Service URL: $(gcloud run services describe aiva-backend-prod --region=europe-west2 --format='value(status.url)')"
+          echo "Image: europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aiva/backend:${{ inputs.image_tag }}"

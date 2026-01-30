@@ -72,6 +72,19 @@ jobs:
           
           echo "✅ All smoke tests passed!"
 
+      - name: Create release tag
+        if: success()
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          TAG_NAME="release-$(date +%Y%m%d-%H%M%S)"
+          git tag -a "$TAG_NAME" -m "Automated release from successful dev deployment"
+          git push origin "$TAG_NAME"
+          
+          echo "✅ Created release tag: $TAG_NAME"
+          echo "To deploy to production, go to Actions → Deploy to Production"
+
       - name: Output deployment info
         run: |
           echo "🚀 Deployment successful!"

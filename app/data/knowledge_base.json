@@ -4,13 +4,13 @@
         "type": "minimise",
         "category": "Food",
         "subtype": "delivery_spike",
-        "text": "Hey {user_name}, I noticed a spike in your food delivery this week.\n\nIt's so easy to tap a button when you're exhausted. If you'd like, I can suggest a few cheap, quick meals (under 25 minutes) so you still feel cared for — just with less pressure on your budget."
+        "text": "Hey {user_name}, I noticed a spike in your food delivery this week.\n\nIt's so easy to tap a button when you're exhausted. If you'd like, I can suggest a few cheap, quick meals (under 25 minutes) so you still feel cared for - just with less pressure on your budget."
     },
     {
         "id": "pattern_entertainment_burnout",
         "type": "pattern",
         "category": "Entertainment",
-        "text": "Hey {user_name}, you've been spending more on fun lately — tickets, outings, little escapes.\n\nThat often happens when someone's been working really hard or feeling burnt out. Want to explore how you're really feeling and find small ways to refill your energy that don't always require spending?"
+        "text": "Hey {user_name}, you've been spending more on fun lately - tickets, outings, little escapes.\n\nThat often happens when someone's been working really hard or feeling burnt out. Want to explore how you're really feeling and find small ways to refill your energy that don't always require spending?"
     },
     {
         "id": "multi_food_entertainment_checkin",
@@ -29,4 +29,3 @@
         ]
     }
 ]
-)

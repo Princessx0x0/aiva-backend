@@ -1,9 +1,9 @@
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 
 from app.core.logging_config import setup_logging
+from app.core.config import get_settings
 from app.routes.hello import router as hello_router
 from app.routes.insights import router as insights_router
 from app.routes.checkins import router as checkins_router
@@ -25,13 +25,11 @@ app.include_router(checkins_router, prefix="/v1")
 app.include_router(health_router)
 
 
-# FIXED: Environment-based CORS configuration
 def get_allowed_origins() -> list:
     """Get allowed origins from environment variable."""
-    origins_env = os.getenv("ALLOWED_ORIGINS", "")
+    origins_env = get_settings().allowed_origins
     if origins_env:
         return [origin.strip() for origin in origins_env.split(",")]
-    # Default for development (restrictive for production)
     return ["http://localhost:3000", "http://localhost:5173"]
 
 
@@ -57,5 +55,7 @@ def read_root() -> Dict[str, str]:
 
 @app.get("/transactions/mock")
 def get_mock_transactions() -> List[Dict[str, Any]]:
-    """Return mock transaction data for testing."""
+    """Return mock transaction data for testing. Only available outside production."""
+    if get_settings().environment == "production":
+        raise HTTPException(status_code=404, detail="Not found.")
     return load_mock_transactions()

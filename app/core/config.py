@@ -1,12 +1,16 @@
-import os
-from pydantic import BaseModel
+from functools import lru_cache
+from pydantic_settings import BaseSettings
 
 
-class Settings(BaseModel):
+class Settings(BaseSettings):
     app_name: str = "AIVA Platform"
-    environment: str = os.getenv("ENVIRONMENT", "local")
+    environment: str = "local"
+    gemini_api_key: str | None = None
+    allowed_origins: str = ""
 
-    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
+    model_config = {"env_file": ".env"}
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

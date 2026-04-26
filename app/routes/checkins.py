@@ -6,6 +6,7 @@ from app.models.responses import CheckinResponse, ErrorResponse
 from app.models.requests import CheckinRequest
 from app.services.ai_client import get_gemini_client
 from app.helpers.json_cleaner import parse_ai_json
+from app.helpers.circuit_breaker import gemini_circuit_breaker
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -59,20 +60,47 @@ def ai_checkin(req: CheckinRequest):
                 detail="AI service is temporarily unavailable."
             )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        try:
+            def call_gemini_api():
+                return client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                )
 
-        ai_text = response.text
+            response = gemini_circuit_breaker.call(call_gemini_api)
+            ai_text = response.text
+
+            if not ai_text:
+                raise HTTPException(
+                    status_code=500,
+                    detail="AI returned an empty response."
+                )
+
+        except Exception as e:
+            error_msg = str(e)
+
+            if "Circuit breaker is OPEN" in error_msg:
+                logger.warning(f"Circuit breaker OPEN: {error_msg}")
+                raise HTTPException(status_code=503, detail=error_msg)
+
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                logger.warning("Gemini API rate limit hit", exc_info=True)
+                raise HTTPException(
+                    status_code=429,
+                    detail="AI service rate limit exceeded. Please try again in a moment."
+                )
+
+            logger.error("Gemini API error", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to call AI service. Please try again later."
+            )
+
         followup_data = parse_ai_json(ai_text)
-
         return followup_data
 
     except json.JSONDecodeError:
-        # ✅ FIXED: Use logging
-        logger.error(
-            "AI returned non-JSON for check-in followup", exc_info=True)
+        logger.error("AI returned non-JSON for check-in followup", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="AI returned invalid JSON for check-in followup."
@@ -81,8 +109,7 @@ def ai_checkin(req: CheckinRequest):
     except HTTPException:
         raise
 
-    except Exception as e:
-        # ✅ FIXED: Use logging
+    except Exception:
         logger.error("Check-in followup error", exc_info=True)
         raise HTTPException(
             status_code=500,

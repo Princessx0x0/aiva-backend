@@ -1,63 +1,60 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 import re
 
+_DANGEROUS_PATTERNS = [
+    "ignore", "disregard", "forget", "new instructions",
+    "system", "admin", "override", "previous instructions",
+    "act as", "you are now", "pretend"
+]
 
-class InsightRequest(BaseModel):
-    """
-    Request body for the /ai/hello endpoint.
-    Includes validation to prevent prompt injection.
-    """
+_ALLOWED_CATEGORIES = [
+    "Food", "Transport", "Entertainment", "Shopping",
+    "Bills", "Healthcare", "Other"
+]
+
+
+class BaseRequest(BaseModel):
+    """Base class providing shared name validation for all request models."""
     name: Optional[str] = Field(
         None,
         max_length=50,
         description="User's name (letters, spaces, hyphens, apostrophes only)"
     )
 
-    @validator('name')
-    def sanitize_name(cls, v):
-        """Validate and sanitize name input."""
+    @field_validator('name', mode='before')
+    @classmethod
+    def sanitize_name(cls, v: str | None) -> str | None:
         if v is None:
             return v
 
-        # Remove leading/trailing whitespace
         v = v.strip()
-
         if not v:
             return None
 
-        # Check for valid characters (letters, spaces, hyphens, apostrophes)
         if not re.match(r"^[a-zA-Z\s'\-]+$", v):
             raise ValueError(
                 "Name can only contain letters, spaces, hyphens, and apostrophes"
             )
 
-        # Check for prompt injection patterns
-        dangerous_patterns = [
-            "ignore", "disregard", "forget", "new instructions",
-            "system", "admin", "override", "previous instructions",
-            "act as", "you are now", "pretend"
-        ]
-
         v_lower = v.lower()
-        for pattern in dangerous_patterns:
+        for pattern in _DANGEROUS_PATTERNS:
             if pattern in v_lower:
                 raise ValueError("Invalid name format")
 
         return v
 
 
-class CheckinRequest(BaseModel):
+class InsightRequest(BaseRequest):
+    """Request body for the /ai/hello endpoint."""
+    pass
+
+
+class CheckinRequest(BaseRequest):
     """
     Request body for the /ai/checkin endpoint.
     Sent after the user selects a check-in option in the UI.
     """
-    name: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="User's name (letters, spaces, hyphens, apostrophes only)"
-    )
-
     category: str = Field(
         ...,
         max_length=50,
@@ -70,43 +67,10 @@ class CheckinRequest(BaseModel):
         description="User's selected check-in option"
     )
 
-    @validator('name')
-    def sanitize_name(cls, v):
-        """Validate and sanitize name input."""
-        if v is None:
-            return v
-
-        v = v.strip()
-        if not v:
-            return None
-
-        if not re.match(r"^[a-zA-Z\s'\-]+$", v):
-            raise ValueError(
-                "Name can only contain letters, spaces, hyphens, and apostrophes"
-            )
-
-        dangerous_patterns = [
-            "ignore", "disregard", "forget", "new instructions",
-            "system", "admin", "override", "previous instructions"
-        ]
-
-        v_lower = v.lower()
-        for pattern in dangerous_patterns:
-            if pattern in v_lower:
-                raise ValueError("Invalid name format")
-
-        return v
-
-    @validator('category')
+    @field_validator('category')
+    @classmethod
     def validate_category(cls, v):
-        """Validate category is from allowed list."""
-        allowed_categories = [
-            "Food", "Transport", "Entertainment", "Shopping",
-            "Bills", "Healthcare", "Other"
-        ]
-
-        if v not in allowed_categories:
+        if v not in _ALLOWED_CATEGORIES:
             raise ValueError(
-                f"Category must be one of: {', '.join(allowed_categories)}")
-
+                f"Category must be one of: {', '.join(_ALLOWED_CATEGORIES)}")
         return v

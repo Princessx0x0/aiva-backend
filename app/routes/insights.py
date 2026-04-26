@@ -12,6 +12,23 @@ from app.services.knowledge_retriever import build_guidance_text, get_checkin_fo
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_CATEGORY_CONTEXT: dict[str, str] = {
+    "Food": (
+        "Food often reflects comfort, routine, or convenience spending. "
+        "High food spend can be linked to busy schedules, eating out, or emotional comfort."
+    ),
+    "Transport": (
+        "Transport spending usually points to routine commitments, commuting, or a busy season of movement."
+    ),
+    "Entertainment": (
+        "Entertainment can signal a need for rest, joy, or stress relief after demanding weeks."
+    ),
+    "Shopping": (
+        "Shopping may reflect planned upgrades, self-care, or impulse buys driven by mood."
+    ),
+}
+_DEFAULT_CONTEXT = "This category likely reflects a mix of routine needs and emotional decisions."
+
 
 @router.post(
     "/ai/insights",
@@ -52,26 +69,7 @@ def ai_insights() -> InsightResponse:
         else:
             spend_level = "high"
 
-        category_context_map = {
-            "Food": (
-                "Food often reflects comfort, routine, or convenience spending. "
-                "High food spend can be linked to busy schedules, eating out, or emotional comfort."
-            ),
-            "Transport": (
-                "Transport spending usually points to routine commitments, commuting, or a busy season of movement."
-            ),
-            "Entertainment": (
-                "Entertainment can signal a need for rest, joy, or stress relief after demanding weeks."
-            ),
-            "Shopping": (
-                "Shopping may reflect planned upgrades, self-care, or impulse buys driven by mood."
-            ),
-        }
-
-        category_context = category_context_map.get(
-            dominant_category,
-            "This category likely reflects a mix of routine needs and emotional decisions."
-        )
+        category_context = _CATEGORY_CONTEXT.get(dominant_category, _DEFAULT_CONTEXT)
 
         # ---- 2b. Retrieve guidance from knowledge base (RAG) ----
         guidance_text = build_guidance_text(
